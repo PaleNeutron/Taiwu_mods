@@ -1,0 +1,8 @@
+﻿{
+  "Id": "LooseChangeBook",
+  "DisplayName": "宽松交换书籍",
+  "Author": "paleneutron",
+  "Version": "0.1.0",
+  "AssemblyName": "LooseChangeBook.dll",
+  "EntryMethod": "LooseChangeBook.Main.Load"
+}
