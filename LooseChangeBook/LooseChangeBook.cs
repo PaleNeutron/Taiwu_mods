@@ -135,14 +135,14 @@ namespace LooseChangeBook
                         __state.Add(bookId);
                     }
                 }
-                return false;
+                return true;
             }
-            return false;
+            return true;
         }
 
         static void Postfix(ref List<int> __result, List<int> __state)
         {
-                __result = __state;
+                __result = __result.Union(__state).ToList();
         }
     }
 }
