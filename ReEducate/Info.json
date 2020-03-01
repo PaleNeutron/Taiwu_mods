@@ -1,0 +1,8 @@
+﻿{
+  "Id": "ReEducate",
+  "DisplayName": "一键重修",
+  "Author": "Koketsu/Xiaozoom",
+  "Version": "1.0.3",
+  "AssemblyName": "ReEducate.dll",
+  "EntryMethod": "ReEducate.Main.Load"
+}

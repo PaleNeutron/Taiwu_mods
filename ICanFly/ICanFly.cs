@@ -78,6 +78,8 @@ namespace ICanFly
             GUILayout.Label("不再弹出追击/放走的对话框, 自动放走");
 
             settings.avoid_battle = GUILayout.Toggle(settings.avoid_battle, "自动放走");
+
+            GUILayout.Label("以下两个条件为或的关系");
             GUILayout.BeginHorizontal("Box");
             GUILayout.Label("不放走品级大于:");
             int.TryParse(GUILayout.TextField(settings.level.ToString(), 1, GUILayout.Width(30)), out settings.level);
@@ -86,7 +88,7 @@ namespace ICanFly
 
             GUILayout.BeginHorizontal("Box");
             GUILayout.Label("不放走精纯值大于:");
-            int.TryParse(GUILayout.TextField(settings.jingchun.ToString(), 1, GUILayout.Width(30)), out settings.jingchun);
+            int.TryParse(GUILayout.TextField(settings.jingchun.ToString(), 2, GUILayout.Width(30)), out settings.jingchun);
             GUILayout.Label("的敌人");
             GUILayout.EndHorizontal();
         }

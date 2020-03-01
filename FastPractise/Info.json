@@ -1,0 +1,9 @@
+﻿{
+  "Id": "FastPractise",
+  "DisplayName": "平衡的快速修炼",
+  "Description": "不破坏平衡性的基础上一键修炼",
+  "Author": "皓月当空dy",
+  "Version": "1.1",
+  "AssemblyName": "FastPractise.dll",
+  "EntryMethod": "FastPractise.Main.Load"
+}

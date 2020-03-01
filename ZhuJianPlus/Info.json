@@ -1,0 +1,8 @@
+﻿{
+  "Id": "ZhuJianPlus",
+  "DisplayName": "强效精制",
+  "Author": "fwb",
+  "Version": "0.0.3",
+  "AssemblyName": "ZhuJianPlus.dll",
+  "EntryMethod": "ZhuJianPlus.Main.Load"
+}

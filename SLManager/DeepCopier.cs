@@ -5,235 +5,300 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 using System.Reflection.Emit;
+using System.Reflection;
 
 namespace DeepCopier
 {
-    class DeepCopier<T> 
+    internal class DeepCopier<T>
     {
-        private ParameterExpression _sourceExpr;
-        private ParameterExpression _destExpr;
-
         public DeepCopier()
         {
-            _sourceExpr = Expression.Parameter(typeof(T), "source");
-            _destExpr = Expression.Parameter(typeof(T), "dest");
+            this._sourceExpr = Expression.Parameter(typeof(T), "source");
+            this._destExpr = Expression.Parameter(typeof(T), "dest");
         }
 
         public Expression<Action<T, T>> GetDeepCopyFieldLambda(string fieldName)
-            => GetDeepCopyFieldLambda(typeof(T).GetField(fieldName));
-
-        public Expression<Action<T, T>> GetDeepCopyFieldLambda(System.Reflection.FieldInfo field)
         {
-            Expression expression = GetDeepCopyFieldExpression(field);
-            return Expression.Lambda<Action<T, T>>(expression, _sourceExpr, _destExpr);
+            return this.GetDeepCopyFieldLambda(typeof(T).GetField(fieldName));
+        }
+
+        public Expression<Action<T, T>> GetDeepCopyFieldLambda(FieldInfo field)
+        {
+            Expression deepCopyFieldExpression = this.GetDeepCopyFieldExpression(field);
+            return Expression.Lambda<Action<T, T>>(deepCopyFieldExpression, new ParameterExpression[]
+            {
+                this._sourceExpr,
+                this._destExpr
+            });
         }
 
         internal IEnumerable<Expression> GetAllDeepCopyFieldExpressions()
         {
-            return typeof(T).GetFields().Select(field => GetDeepCopyFieldExpression(field));
+            return from field in typeof(T).GetFields()
+                   select this.GetDeepCopyFieldExpression(field);
         }
 
         internal Expression<Action<T, T>> GetAllDeepCopyFieldLambda()
-            => Lambda(GetAllDeepCopyFieldExpressions());
+        {
+            return this.Lambda(this.GetAllDeepCopyFieldExpressions());
+        }
 
         internal Action<T, T> CompileAllDeepCopyFieldAction()
-            => GetAllDeepCopyFieldLambda().Compile();
+        {
+            return this.GetAllDeepCopyFieldLambda().Compile();
+        }
 
         internal Task<Action<T, T>> StartCompileAllDeepCopyFieldAction()
-            => Task.Run(CompileAllDeepCopyFieldAction);
+        {
+            return Task.Run<Action<T, T>>(new Func<Action<T, T>>(this.CompileAllDeepCopyFieldAction));
+        }
 
         public Expression GetDeepCopyFieldExpression(string fieldName)
-            => GetDeepCopyFieldExpression(typeof(T).GetField(fieldName));
-
-        public Expression GetDeepCopyFieldExpression(System.Reflection.FieldInfo field)
         {
-            var fType = field.FieldType;
-            MemberExpression sourceFieldExp = Expression.Field(_sourceExpr, field);
-            var cloneExpr = GetDeepCloneExpression(fType, sourceFieldExp);
+            return this.GetDeepCopyFieldExpression(typeof(T).GetField(fieldName));
+        }
 
-            MemberExpression destFieldExp = Expression.Field(_destExpr, field);
-
-            BinaryExpression assignExp = Expression.Assign(destFieldExp, cloneExpr);
-            return assignExp;
+        public Expression GetDeepCopyFieldExpression(FieldInfo field)
+        {
+            Type fieldType = field.FieldType;
+            MemberExpression dataExpr = Expression.Field(this._sourceExpr, field);
+            Expression deepCloneExpression = this.GetDeepCloneExpression(fieldType, dataExpr);
+            MemberExpression left = Expression.Field(this._destExpr, field);
+            return Expression.Assign(left, deepCloneExpression);
         }
 
         public Expression<Action<T, T>> Lambda(Expression expression)
         {
-            return Expression.Lambda<Action<T, T>>(expression, _sourceExpr, _destExpr);
+            return Expression.Lambda<Action<T, T>>(expression, new ParameterExpression[]
+            {
+                this._sourceExpr,
+                this._destExpr
+            });
         }
 
         public Expression<Action<T, T>> Lambda(params Expression[] expressions)
-            => Lambda((IEnumerable<Expression>)expressions);
+        {
+            return this.Lambda(expressions);
+        }
 
         public Expression<Action<T, T>> Lambda(IEnumerable<Expression> expressions)
         {
-            Expression blockExpr = Expression.Block(expressions);
-            return Lambda(blockExpr);
+            Expression expression = Expression.Block(expressions);
+            return this.Lambda(expression);
         }
 
         public Action<T, T> Compile(Expression expression)
         {
-            return Lambda(expression).Compile();
+            return this.Lambda(expression).Compile();
         }
 
         internal IEnumerable<Expression> GetAllShallowCopyFieldExpressions()
         {
-            return typeof(T).GetFields().Select(field => GetShallowCopyFieldExpression(field));
+            return from field in typeof(T).GetFields()
+                   select this.GetShallowCopyFieldExpression(field);
         }
 
         internal Expression<Action<T, T>> GetShallowCopyCopyFieldLambda()
-            => Lambda(GetAllShallowCopyFieldExpressions());
-
-        internal Action<T, T> CompileAllShallowCopyFieldAction()
-            => GetShallowCopyCopyFieldLambda().Compile();
-
-        internal Task<Action<T, T>> StartCompileAllShallowCopyFieldAction()
-            => Task.Run(CompileAllShallowCopyFieldAction);
-
-        public Expression GetShallowCopyFieldExpression(System.Reflection.FieldInfo field)
         {
-            MemberExpression sourceFieldExp = Expression.Field(_sourceExpr, field);
-            MemberExpression destFieldExp = Expression.Field(_destExpr, field);
-            BinaryExpression assignExp = Expression.Assign(destFieldExp, sourceFieldExp);
-            return assignExp;
+            return this.Lambda(this.GetAllShallowCopyFieldExpressions());
         }
 
+        internal Action<T, T> CompileAllShallowCopyFieldAction()
+        {
+            return this.GetShallowCopyCopyFieldLambda().Compile();
+        }
+
+        internal Task<Action<T, T>> StartCompileAllShallowCopyFieldAction()
+        {
+            return Task.Run<Action<T, T>>(new Func<Action<T, T>>(this.CompileAllShallowCopyFieldAction));
+        }
+
+        public Expression GetShallowCopyFieldExpression(FieldInfo field)
+        {
+            MemberExpression right = Expression.Field(this._sourceExpr, field);
+            MemberExpression left = Expression.Field(this._destExpr, field);
+            return Expression.Assign(left, right);
+        }
 
         public Expression GetDeepCloneExpression(Type dataType, Expression dataExpr)
         {
-            if (dataType.IsValueType || typeof(string) == dataType)
+            bool flag = dataType.IsValueType || typeof(string) == dataType;
+            if (!flag)
             {
-                return dataExpr;
-            }
-            else if (dataType.IsArray)
-            {
-                var valueType = dataType.GetElementType();
-                if (valueType.IsValueType || typeof(string) == valueType)
+                bool isArray = dataType.IsArray;
+                if (isArray)
                 {
-                    var cloneArrayMethod = typeof(ExpressionHelper).GetMethod("CloneArray", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-                    var cloneArrayGenericMethod = cloneArrayMethod.MakeGenericMethod(valueType);
-                    var cloneArrayExpr = Expression.Call(cloneArrayGenericMethod, dataExpr);
-                    return cloneArrayExpr;
+                    Type elementType = dataType.GetElementType();
+                    bool flag2 = elementType.IsValueType || typeof(string) == elementType;
+                    if (flag2)
+                    {
+                        MethodInfo method = typeof(ExpressionHelper).GetMethod("CloneArray", BindingFlags.Static | BindingFlags.Public);
+                        MethodInfo method2 = method.MakeGenericMethod(new Type[]
+                        {
+                            elementType
+                        });
+                        return Expression.Call(method2, dataExpr);
+                    }
                 }
                 else
                 {
-
-                    // deepclone element
+                    bool isGenericType = dataType.IsGenericType;
+                    if (isGenericType)
+                    {
+                        Type[] genericArguments = dataType.GetGenericArguments();
+                        Type genericTypeDefinition = dataType.GetGenericTypeDefinition();
+                        bool flag3 = typeof(SortedDictionary<,>) == genericTypeDefinition;
+                        if (flag3)
+                        {
+                            SortedDictionary<int, int> sortedDictionary = new SortedDictionary<int, int>();
+                            Type type = genericArguments[0];
+                            Type type2 = genericArguments[1];
+                            bool flag4 = !type.IsValueType && typeof(string) != type;
+                            if (flag4)
+                            {
+                                throw new NotSupportedException("SortedDictionary " + dataType.Name + " key is not a value type");
+                            }
+                            bool flag5 = type2.IsValueType || typeof(string) == type2;
+                            if (flag5)
+                            {
+                                Type type3 = genericTypeDefinition.MakeGenericType(new Type[]
+                                {
+                                    type,
+                                    type2
+                                });
+                                Type type4 = typeof(IDictionary<,>).MakeGenericType(new Type[]
+                                {
+                                    type,
+                                    type2
+                                });
+                                Type type5 = typeof(IComparer<>).MakeGenericType(new Type[]
+                                {
+                                    type
+                                });
+                                ConstructorInfo constructor = type3.GetConstructor(new Type[]
+                                {
+                                    type4,
+                                    type5
+                                });
+                                MemberExpression memberExpression = Expression.Property(dataExpr, "Comparer");
+                                NewExpression notNullExpr = Expression.New(constructor, new Expression[]
+                                {
+                                    dataExpr,
+                                    memberExpression
+                                });
+                                return DeepCopier<T>.getNullConditionalExpr(type3, dataExpr, notNullExpr);
+                            }
+                            ParameterExpression parameterExpression = Expression.Parameter(type2, "value");
+                            Expression deepCloneExpression = this.GetDeepCloneExpression(type2, parameterExpression);
+                            LambdaExpression arg = Expression.Lambda(deepCloneExpression, new ParameterExpression[]
+                            {
+                                parameterExpression
+                            });
+                            MethodInfo copySortedDictionaryGenericMethod = ExpressionHelper.GetCopySortedDictionaryGenericMethod(type, type2);
+                            return Expression.Call(copySortedDictionaryGenericMethod, dataExpr, arg);
+                        }
+                        else
+                        {
+                            bool flag6 = typeof(Dictionary<,>) == genericTypeDefinition;
+                            if (flag6)
+                            {
+                                Type type6 = genericArguments[0];
+                                Type type7 = genericArguments[1];
+                                bool flag7 = !type6.IsValueType && typeof(string) != type6;
+                                if (flag7)
+                                {
+                                    throw new NotSupportedException("Dictionary " + dataType.Name + " key is not a value type");
+                                }
+                                bool flag8 = type7.IsValueType || typeof(string) == type7;
+                                if (flag8)
+                                {
+                                    Type type8 = genericTypeDefinition.MakeGenericType(new Type[]
+                                    {
+                                        type6,
+                                        type7
+                                    });
+                                    Type type9 = typeof(IDictionary<,>).MakeGenericType(new Type[]
+                                    {
+                                        type6,
+                                        type7
+                                    });
+                                    ConstructorInfo constructor2 = type8.GetConstructor(new Type[]
+                                    {
+                                        type9
+                                    });
+                                    NewExpression notNullExpr2 = Expression.New(constructor2, new Expression[]
+                                    {
+                                        dataExpr
+                                    });
+                                    return DeepCopier<T>.getNullConditionalExpr(type8, dataExpr, notNullExpr2);
+                                }
+                                ParameterExpression parameterExpression2 = Expression.Parameter(type7, "value");
+                                Expression deepCloneExpression2 = this.GetDeepCloneExpression(type7, parameterExpression2);
+                                LambdaExpression arg2 = Expression.Lambda(deepCloneExpression2, new ParameterExpression[]
+                                {
+                                    parameterExpression2
+                                });
+                                MethodInfo copyDictionaryGenericMethod = ExpressionHelper.GetCopyDictionaryGenericMethod(type6, type7);
+                                return Expression.Call(copyDictionaryGenericMethod, dataExpr, arg2);
+                            }
+                            else
+                            {
+                                bool flag9 = typeof(List<>) == genericTypeDefinition;
+                                if (flag9)
+                                {
+                                    Type type10 = genericArguments[0];
+                                    Type type11 = genericTypeDefinition.MakeGenericType(new Type[]
+                                    {
+                                        type10
+                                    });
+                                    Type type12 = typeof(IEnumerable<>).MakeGenericType(new Type[]
+                                    {
+                                        type10
+                                    });
+                                    bool flag10 = type10.IsValueType || typeof(string) == type10;
+                                    if (flag10)
+                                    {
+                                        ConstructorInfo constructor3 = type11.GetConstructor(new Type[]
+                                        {
+                                            type12
+                                        });
+                                        NewExpression notNullExpr3 = Expression.New(constructor3, new Expression[]
+                                        {
+                                            dataExpr
+                                        });
+                                        return DeepCopier<T>.getNullConditionalExpr(type11, dataExpr, notNullExpr3);
+                                    }
+                                    ParameterExpression parameterExpression3 = Expression.Parameter(type10, "item");
+                                    Expression deepCloneExpression3 = this.GetDeepCloneExpression(type10, parameterExpression3);
+                                    LambdaExpression arg3 = Expression.Lambda(deepCloneExpression3, new ParameterExpression[]
+                                    {
+                                        parameterExpression3
+                                    });
+                                    MethodInfo selectGenericMethod = ExpressionHelper.GetSelectGenericMethod(type10, type10);
+                                    MethodCallExpression arg4 = Expression.Call(selectGenericMethod, dataExpr, arg3);
+                                    MethodInfo toListGenericMethod = ExpressionHelper.GetToListGenericMethod(type10);
+                                    MethodCallExpression notNullExpr4 = Expression.Call(toListGenericMethod, arg4);
+                                    return DeepCopier<T>.getNullConditionalExpr(type11, dataExpr, notNullExpr4);
+                                }
+                            }
+                        }
+                    }
                 }
+                throw new NotImplementedException(dataType.Name + " is not implemented");
             }
-            else if (dataType.IsGenericType)
-            {
-                var genericArgTypes = dataType.GetGenericArguments();
-                var genericTypeDef = dataType.GetGenericTypeDefinition();
-                if (typeof(SortedDictionary<,>) == genericTypeDef)
-                {
-                    SortedDictionary<int, int> s = new SortedDictionary<int, int>();
-                    Type keyType = genericArgTypes[0];
-                    Type valueType = genericArgTypes[1];
-                    if (!keyType.IsValueType && typeof(string) != keyType)
-                        throw new NotSupportedException($"SortedDictionary {dataType.Name} key is not a value type");
-                    if (valueType.IsValueType || typeof(string) == valueType)
-                    {
-                        // clone by new Dictionary<,>(IDictionary)
-                        Type genericDictType = genericTypeDef.MakeGenericType(keyType, valueType);
-                        Type IDictionaryType = typeof(IDictionary<,>).MakeGenericType(keyType, valueType);
-                        Type IComparerType = typeof(IComparer<>).MakeGenericType(keyType);
-                        var contructor = genericDictType.GetConstructor(new Type[] { IDictionaryType, IComparerType });
-                        var comparerProperty = Expression.Property(dataExpr, "Comparer");
-                        var newDictExpr = Expression.New(contructor, dataExpr, comparerProperty);
-                        var nullCondExpr = getNullConditionalExpr(genericDictType, dataExpr, newDictExpr);
-                        return nullCondExpr;
-                    }
-                    else
-                    {
-                        ParameterExpression paramExpr = Expression.Parameter(valueType, "value");
-                        var valueCloneExpr = GetDeepCloneExpression(valueType, paramExpr);
-                        var valueCloneLambda = Expression.Lambda(valueCloneExpr, paramExpr);
-                        var copyDictMethod = ExpressionHelper.GetCopySortedDictionaryGenericMethod(keyType, valueType);
-                        var copyDictExpr = Expression.Call(copyDictMethod, dataExpr, valueCloneLambda);
-                        return copyDictExpr;
-                    }
-                }
-                if (typeof(Dictionary<,>) == genericTypeDef)
-                {
-                    Type keyType = genericArgTypes[0];
-                    Type valueType = genericArgTypes[1];
-                    if (!keyType.IsValueType && typeof(string) != keyType)
-                        throw new NotSupportedException($"Dictionary {dataType.Name} key is not a value type");
-                    if (valueType.IsValueType || typeof(string) == valueType)
-                    {
-                        // clone by new Dictionary<,>(IDictionary)
-                        Type genericDictType = genericTypeDef.MakeGenericType(keyType, valueType);
-                        Type IDictionaryType = typeof(IDictionary<,>).MakeGenericType(keyType, valueType);
-                        var contructor = genericDictType.GetConstructor(new Type[] { IDictionaryType });
-                        var newDictExpr = Expression.New(contructor, dataExpr);
-
-                        var nullCondExpr = getNullConditionalExpr(genericDictType, dataExpr, newDictExpr);
-                        return nullCondExpr;
-                    }
-                    else
-                    {
-                        ParameterExpression paramExpr = Expression.Parameter(valueType, "value");
-                        var valueCloneExpr = GetDeepCloneExpression(valueType, paramExpr);
-                        var valueCloneLambda = Expression.Lambda(valueCloneExpr, paramExpr);
-                        var copyDictMethod = ExpressionHelper.GetCopyDictionaryGenericMethod(keyType, valueType);
-                        var copyDictExpr = Expression.Call(copyDictMethod, dataExpr, valueCloneLambda);
-                        return copyDictExpr;
-
-                        //Type kvpGenericType = ExpressionHelper.GetKeyValuePairType(keyType, valueType);
-                        //ParameterExpression paramExpr = Expression.Parameter(kvpGenericType, "kvp");
-                        //// key
-                        //Expression keySelectExpr = Expression.Field(paramExpr, "Key");
-                        //var keySelectLambda = Expression.Lambda(keySelectExpr, paramExpr);
-                        //// value
-                        //Expression valueSelectExpr = Expression.Field(paramExpr, "Value");
-                        //var valueCloneExpr = GetDeepCloneExpression(valueType, valueSelectExpr);
-                        //var valueCloneLambda = Expression.Lambda(valueCloneExpr, paramExpr);
-                        //// ToDictionary
-                        //var toDictMethod = ExpressionHelper.GetToDictionaryGenericMethod(kvpGenericType, keyType, valueType);
-                        //var toDictExpr = Expression.Call(toDictMethod, dataExpr, keySelectLambda, valueCloneLambda);
-                        //return toDictExpr;
-                    }
-                }
-                else if (typeof(List<>) == genericTypeDef)
-                {
-                    Type valueType = genericArgTypes[0];
-                    Type genericListType = genericTypeDef.MakeGenericType(valueType);
-                    Type enumerableType = typeof(IEnumerable<>).MakeGenericType(valueType);
-                    if (valueType.IsValueType || typeof(string) == valueType)
-                    {
-                        var contructor = genericListType.GetConstructor(new Type[] { enumerableType });
-                        var newListExpr = Expression.New(contructor, dataExpr);
-                        var nullCondExpr = getNullConditionalExpr(genericListType, dataExpr, newListExpr);
-                        return nullCondExpr;
-                    }
-                    else
-                    {
-                        ParameterExpression paramExpr = Expression.Parameter(valueType, "item");
-                        var valueCloneExpr = GetDeepCloneExpression(valueType, paramExpr);
-                        var valueCloneLambda = Expression.Lambda(valueCloneExpr, paramExpr);
-
-
-                        var selectGenericMethod = ExpressionHelper.GetSelectGenericMethod(valueType, valueType);
-                        var selectCloneExpr = Expression.Call(selectGenericMethod, dataExpr, valueCloneLambda);
-                        var toListMethod = ExpressionHelper.GetToListGenericMethod(valueType);
-                        var toListExpr = Expression.Call(toListMethod, selectCloneExpr);
-                        var nullCondExpr = getNullConditionalExpr(genericListType, dataExpr, toListExpr);
-                        return nullCondExpr;  // source?.{field}.Select(item => CloneArray(item)).ToList()
-                    }
-                }
-            }
-            throw new NotImplementedException($"{dataType.Name} is not implemented");
+            return dataExpr;
         }
 
-        // (testExpr != null) ? notNullExpr : null
         private static ConditionalExpression getNullConditionalExpr(Type type, Expression testExpr, Expression notNullExpr)
         {
-            var nullExpr = Expression.Constant(null, type);
-            var isNullExpr = Expression.Equal(testExpr, nullExpr);
-            var nullCondExpr = Expression.Condition(isNullExpr, nullExpr, notNullExpr);
-            return nullCondExpr;
+            ConstantExpression constantExpression = Expression.Constant(null, type);
+            BinaryExpression test = Expression.Equal(testExpr, constantExpression);
+            return Expression.Condition(test, constantExpression, notNullExpr);
         }
+
+        private ParameterExpression _sourceExpr;
+
+        private ParameterExpression _destExpr;
     }
 
     class ExpressionHelper
